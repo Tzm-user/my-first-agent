@@ -281,3 +281,17 @@ GET /rest/v1/todos?select=*,categories(*)  ← 获取任务（含JOIN）
 POST /rest/v1/todos                       ← 添加任务
 PATCH /rest/v1/todos?id=eq.x            ← 修改状态
 DELETE /rest/v1/todos?id=eq.x            ← 删除
+<select id="categorySelect">
+  <option value="1">工作</option>
+  <option value="2">学习</option>
+  <option value="3">生活</option>
+</select>
+<span class="category-tag" style="background:#1e40af">工作</span>
+<div class="filter-group">
+  <button class="filter-btn active">全部</button>
+  <button class="filter-btn">工作</button>
+  <button class="filter-btn">学习</button>
+  <button class="filter-btn">生活</button>
+</div>
+
+
