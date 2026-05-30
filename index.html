@@ -46,6 +46,15 @@
     input[type="text"]\:focus {
       border-color: #667eea;
     }
+    select {
+      padding: 12px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      font-size: 16px;
+      outline: none;
+      cursor: pointer;
+      background: white;
+    }
     button {
       padding: 12px 24px;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -111,10 +120,8 @@
       font-weight: 500;
       margin-left: 10px;
       white-space: nowrap;
+      color: white;
     }
-    .category-工作 { background: #dbeafe; color: #1e40af; }
-    .category-学习 { background: #d1fae5; color: #065f46; }
-    .category-生活 { background: #ffedd5; color: #9a3412; }
     .filter-group {
       display: flex;
       gap: 8px;
@@ -147,6 +154,11 @@
       color: #666;
       font-size: 14px;
     }
+    .loading {
+      text-align: center;
+      color: #999;
+      padding: 40px;
+    }
   </style>
 </head>
 <body>
@@ -154,112 +166,156 @@
     <h1>📝 Todo List</h1>
     <div class="input-group">
       <input type="text" id="todoInput" placeholder="输入待办事项..." onkeypress="handleKeyPress(event)">
-      <select id="categorySelect" style="padding: 12px 16px; border: 2px solid #e0e0e0; border-radius: 12px; font-size: 16px; outline: none; cursor: pointer;">
-        <option value="工作">💼 工作</option>
-        <option value="学习">📚 学习</option>
-        <option value="生活" selected>🏠 生活</option>
+      <select id="categorySelect">
+        <option value="" disabled>加载中...</option>
       </select>
       <button onclick="addTodo()">添加</button>
     </div>
-    <div class="filter-group">
+    <div class="filter-group" id="filterGroup">
       <button class="filter-btn active" onclick="setFilter('全部')">全部</button>
-      <button class="filter-btn" onclick="setFilter('工作')">💼 工作</button>
-      <button class="filter-btn" onclick="setFilter('学习')">📚 学习</button>
-      <button class="filter-btn" onclick="setFilter('生活')">🏠 生活</button>
     </div>
-    <ul id="todoList"></ul>
+    <ul id="todoList"><div class="loading">加载中...</div></ul>
     <div class="status" id="status"></div>
   </div>
 
   <script>
-    const CATEGORIES = ['工作', '学习', '生活'];
-    const DEFAULT_CATEGORY = '生活';
+    const SUPABASE_URL = 'https://mvdyzahrkjpkbxgzh.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12ZHp5YWhyemtpcGtieXhnemhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxOTQ5OTIsImV4cCI6MjA5Mjc3MDk5Mn0.Ab5u8X7xny-vb4YuKeZMCdBmE4PFG-JTdkPZiwKVuao';
+
+    const headers = {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation'
+    };
+
+    let categories = [];
+    let todos = [];
     let currentFilter = '全部';
 
-    function loadTodos() {
-      const raw = localStorage.getItem('todos');
-      if (!raw) return [];
-      try {
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed)) return [];
-        return parsed.map(todo => ({
-          text: todo.text || '',             05-30 15:41:16          completed: !!todo.completed,
-          category: CATEGORIES.includes(todo.category) ? todo.category : DEFAULT_CATEGORY
-        }));
-      } catch (e) {
-        return [];
+    async function loadCategories() {             05-30 16:13:58      const res = await fetch(`${SUPABASE_URL}/rest/v1/categories?select=*&order=id`, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } });
+      categories = await res.json();
+      renderCategorySelect();
+      renderCategoryFilters();
+    }
+
+    async function loadTodos() {
+      const list = document.getElementById('todoList');
+      list.innerHTML = '<div class="loading">加载中...</div>';
+
+      let url = `${SUPABASE_URL}/rest/v1/todos?select=*,categories(*)`;
+      if (currentFilter !== '全部') {
+        const cat = categories.find(c => c.name === currentFilter);
+        if (cat) {
+          url += `&category_id=eq.${cat.id}`;
+        }
+      }
+      url += '&order=created_at.desc';
+
+      const res = await fetch(url, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } });
+      todos = await res.json();
+      renderTodos();
+    }
+
+    async function addTodo() {
+      const input = document.getElementById('todoInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const categoryId = document.getElementById('categorySelect').value;
+      if (!categoryId) {
+        alert('请选择分类');
+        return;
+      }
+
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/todos`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          title: text,
+          completed: false,
+          category_id: parseInt(categoryId)
+        })
+      });
+
+      if (res.ok) {
+        input.value = '';
+        loadTodos();
+      } else {
+        alert('添加失败');
       }
     }
 
-    let todos = loadTodos();
+    async function toggleTodo(id) {
+      const todo = todos.find(t => t.id === id);
+      if (!todo) return;
 
-    function setFilter(category) {
-      currentFilter = category;
-      document.querySelectorAll('.filter-btn').forEach(btn => {
-        const btnText = btn.textContent.trim();
-        const isActive = btnText === category || btnText.includes(category);
-        btn.classList.toggle('active', isActive);
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/todos?id=eq.${id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ completed: !todo.completed })
       });
-      renderTodos();
+
+      if (res.ok) loadTodos();
+    }
+
+    async function deleteTodo(id) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/todos?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+      });
+      if (res.ok) loadTodos();
     }
 
     function renderTodos() {
       const list = document.getElementById('todoList');
       const status = document.getElementById('status');
-      
-      const filteredTodos = currentFilter === '全部' 
-        ? todos 
-        : todos.filter(todo => todo.category === currentFilter);
-      
-      if (filteredTodos.length === 0) {
+
+      if (todos.length === 0) {
         list.innerHTML = '<div class="empty">' + (currentFilter === '全部' ? '暂无待办事项，添加一个吧！' : `暂无「${currentFilter}」类任务`) + '</div>';
         status.textContent = '';
         return;
       }
-      
-      list.innerHTML = filteredTodos.map((todo) => {
-        const originalIndex = todos.indexOf(todo);
+
+      list.innerHTML = todos.map(todo => {
+        const catColor = todo.categories?.color || '#666';
+        const catName = todo.categories?.name || '未知';
         return `
         <li class="${todo.completed ? 'completed' : ''}">
-          <input type="checkbox" ${todo.completed ? 'checked' : ''} onchange="toggleTodo(${originalIndex})">
-          <span>${escapeHtml(todo.text)}</span>
-          <span class="category-tag category-${todo.category}">${todo.category}</span>
-          <button class="delete-btn" onclick="deleteTodo(${originalIndex})">删除</button>
+          <input type="checkbox" ${todo.completed ? 'checked' : ''} onchange="toggleTodo(${todo.id})">
+          <span>${escapeHtml(todo.title)}</span>
+          <span class="category-tag" style="background:${catColor}">${catName}</span>
+          <button class="delete-btn" onclick="deleteTodo(${todo.id})">删除</button>
         </li>
       `;
       }).join('');
-      
-      const completed = filteredTodos.filter(t => t.completed).length;
+
+      const completed = todos.filter(t => t.completed).length;
       const filterLabel = currentFilter === '全部' ? '' : `「${currentFilter}」`;
-      status.textContent = `${filterLabel}共 ${filteredTodos.length} 项，已完成 ${completed} 项`;
+      status.textContent = `${filterLabel}共 ${todos.length} 项，已完成 ${completed} 项`;
     }
 
-    function addTodo() {
-      const input = document.getElementById('todoInput');
-      const text = input.value.trim();
-      if (!text) return;
-      
-      const category = document.getElementById('categorySelect').value;
-      todos.push({ text, completed: false, category });
-      saveTodos();
-      input.value = '';
-      renderTodos();
+    function renderCategorySelect() {
+      const select = document.getElementById('categorySelect');
+      select.innerHTML = categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
     }
 
-    function toggleTodo(index) {
-      todos[index].completed = !todos[index].completed;
-      saveTodos();
-      renderTodos();
+    function renderCategoryFilters() {
+      const group = document.getElementById('filterGroup');
+      const catButtons = categories.map(c => 
+        `<button class="filter-btn" onclick="setFilter('${c.name}')">${c.name}</button>`
+      ).join('');
+      group.innerHTML = `<button class="filter-btn active" onclick="setFilter('全部')">全部</button>` + catButtons;
     }
 
-    function deleteTodo(index) {
-      todos.splice(index, 1);
-      saveTodos();
-      renderTodos();
-    }
-
-    function saveTodos() {
-      localStorage.setItem('todos', JSON.stringify(todos));
+    function setFilter(category) {
+      currentFilter = category;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        const btnText = btn.textContent.trim();
+        const isActive = btnText === category || (category === '全部' && btnText === '全部');
+        btn.classList.toggle('active', isActive);
+      });
+      loadTodos();
     }
 
     function handleKeyPress(event) {
@@ -272,26 +328,11 @@
       return div.innerHTML;
     }
 
-    renderTodos();
+    async function init() {
+      await loadCategories();
+      await loadTodos();
+    }
+    init();
   </script>
 </body>
 </html>
-GET /rest/v1/categories?select=*          ← 获取分类
-GET /rest/v1/todos?select=*,categories(*)  ← 获取任务（含JOIN）
-POST /rest/v1/todos                       ← 添加任务
-PATCH /rest/v1/todos?id=eq.x            ← 修改状态
-DELETE /rest/v1/todos?id=eq.x            ← 删除
-<select id="categorySelect">
-  <option value="1">工作</option>
-  <option value="2">学习</option>
-  <option value="3">生活</option>
-</select>
-<span class="category-tag" style="background:#1e40af">工作</span>
-<div class="filter-group">
-  <button class="filter-btn active">全部</button>
-  <button class="filter-btn">工作</button>
-  <button class="filter-btn">学习</button>
-  <button class="filter-btn">生活</button>
-</div>
-
-
