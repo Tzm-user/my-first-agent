@@ -276,3 +276,8 @@
   </script>
 </body>
 </html>
+GET /rest/v1/categories?select=*          ← 获取分类
+GET /rest/v1/todos?select=*,categories(*)  ← 获取任务（含JOIN）
+POST /rest/v1/todos                       ← 添加任务
+PATCH /rest/v1/todos?id=eq.x            ← 修改状态
+DELETE /rest/v1/todos?id=eq.x            ← 删除
