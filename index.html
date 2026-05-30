@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>My Todo App</title>
   <style>
-    { margin: 0; padding: 0; box-sizing: border-box; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -115,6 +115,32 @@
     .category-工作 { background: #dbeafe; color: #1e40af; }
     .category-学习 { background: #d1fae5; color: #065f46; }
     .category-生活 { background: #ffedd5; color: #9a3412; }
+    .filter-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 15px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 14px;
+      border: 2px solid #e0e0e0;
+      background: white;
+      color: #666;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .filter-btn:hover {
+      border-color: #667eea;
+      color: #667eea;
+    }
+    .filter-btn.active {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-color: transparent;
+    }
     .status {
       text-align: center;
       margin-top: 20px;
@@ -135,6 +161,12 @@
       </select>
       <button onclick="addTodo()">添加</button>
     </div>
+    <div class="filter-group">
+      <button class="filter-btn active" onclick="setFilter('全部')">全部</button>
+      <button class="filter-btn" onclick="setFilter('工作')">💼 工作</button>
+      <button class="filter-btn" onclick="setFilter('学习')">📚 学习</button>
+      <button class="filter-btn" onclick="setFilter('生活')">🏠 生活</button>
+    </div>
     <ul id="todoList"></ul>
     <div class="status" id="status"></div>
   </div>
@@ -142,6 +174,7 @@
   <script>
     const CATEGORIES = ['工作', '学习', '生活'];
     const DEFAULT_CATEGORY = '生活';
+    let currentFilter = '全部';
 
     function loadTodos() {
       const raw = localStorage.getItem('todos');
@@ -150,8 +183,7 @@
         const parsed = JSON.parse(raw);
         if (!Array.isArray(parsed)) return [];
         return parsed.map(todo => ({
-          text: todo.text || '',
-          completed: !!todo.completed,
+          text: todo.text || '',             05-30 15:41:16          completed: !!todo.completed,
           category: CATEGORIES.includes(todo.category) ? todo.category : DEFAULT_CATEGORY
         }));
       } catch (e) {
@@ -161,31 +193,45 @@
 
     let todos = loadTodos();
 
+    function setFilter(category) {
+      currentFilter = category;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        const btnText = btn.textContent.trim();
+        const isActive = btnText === category || btnText.includes(category);
+        btn.classList.toggle('active', isActive);
+      });
+      renderTodos();
+    }
+
     function renderTodos() {
       const list = document.getElementById('todoList');
       const status = document.getElementById('status');
       
-      if (todos.length === 0) {
-        list.innerHTML = '<div class="empty">暂无待办事项，添加一个吧！</div>';
+      const filteredTodos = currentFilter === '全部' 
+        ? todos 
+        : todos.filter(todo => todo.category === currentFilter);
+      
+      if (filteredTodos.length === 0) {
+        list.innerHTML = '<div class="empty">' + (currentFilter === '全部' ? '暂无待办事项，添加一个吧！' : `暂无「${currentFilter}」类任务`) + '</div>';
         status.textContent = '';
         return;
       }
       
-      list.innerHTML = todos.map((todo, index) => `
+      list.innerHTML = filteredTodos.map((todo) => {
+        const originalIndex = todos.indexOf(todo);
+        return `
         <li class="${todo.completed ? 'completed' : ''}">
-          <input type="checkbox" ${todo.completed ? 'checked' : ''} onchange="toggleTodo(${index})">
+          <input type="checkbox" ${todo.completed ? 'checked' : ''} onchange="toggleTodo(${originalIndex})">
           <span>${escapeHtml(todo.text)}</span>
           <span class="category-tag category-${todo.category}">${todo.category}</span>
-          <button class="delete-btn" onclick="deleteTodo(${index})">删除</button>
+          <button class="delete-btn" onclick="deleteTodo(${originalIndex})">删除</button>
         </li>
-      `).join('');
-```
-
-机器人1903869821: 05-30 14:51:22
-```html
-     
-      const completed = todos.filter(t => t.completed).length;
-      status.textContent = `共 ${todos.length} 项，已完成 ${completed} 项`;
+      `;
+      }).join('');
+      
+      const completed = filteredTodos.filter(t => t.completed).length;
+      const filterLabel = currentFilter === '全部' ? '' : `「${currentFilter}」`;
+      status.textContent = `${filterLabel}共 ${filteredTodos.length} 项，已完成 ${completed} 项`;
     }
 
     function addTodo() {
